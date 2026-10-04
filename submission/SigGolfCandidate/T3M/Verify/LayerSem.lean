@@ -170,6 +170,8 @@ structure LayerIn (w : WBytes) (pk : Digest) (index lay : Nat) (msg : LayerMsg)
   route : s.getReg (rReg lay) = BitVec.ofNat 64 (index / 2 ^ below lay)
   msg : MsgAt w lay msg s
   orig : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay) s
+  hdr3 : lay = 3 → s.getMem (BitVec.ofNat 64 (TOPLOAD + 32)) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + 3 * 2 ^ 48)
+  s6mem : lay = 3 → s.getMem (BitVec.ofNat 64 s6Slot) = BitVec.ofNat 64 23304
 structure EncPre (w : WBytes) (pk : Digest) (index lay c : Nat)
     (t : MachineState) : Prop where
   pc : t.pc = pcOf (trPc lay c + stepsA lay)
@@ -181,6 +183,8 @@ structure EncPre (w : WBytes) (pk : Digest) (index lay c : Nat)
   t5 : ∀ L : Layer, L.val = lay → lay ≠ 0 →
     t.getReg .x30 = BitVec.ofNat 64 (route index L).2
   orig : Verify.Orig w (fun o => 9288 ≤ o ∧ o < layerEnd lay) t
+  hdr3 : lay = 3 → t.getMem (BitVec.ofNat 64 (TOPLOAD + 32)) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + 3 * 2 ^ 48)
+  s6mem : lay = 3 → t.getMem (BitVec.ofNat 64 s6Slot) = BitVec.ofNat 64 23304
 def rejectSteps (lay : Nat) : Nat := stepsA lay + if lay = 3 then 1 else 2
 def EncodingSetup : Prop :=
   ∀ (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer)
@@ -579,14 +583,15 @@ theorem packedRouteE_eval (lay : Layer) (tree leaf : Nat) (s : MachineState)
     (ht : tree < 2 ^ 32) (hl : leaf < 2 ^ height lay)
     (hr : tree * 2 ^ height lay + leaf < 2 ^ 32)
     (h4 : s.getReg .x4 = BitVec.ofNat 64 (hdr1 tree leaf))
-    (h30 : s.getReg .x30 = BitVec.ofNat 64 tree) (hD : DataOK s) :
+    (h30 : s.getReg .x30 = BitVec.ofNat 64 tree)
+    (hP : s.getMem (BitVec.ofNat 64 (hdrA lay.val)) = BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + lay.val * 2 ^ 48)) :
     (packedRouteE lay.val).eval s = BitVec.ofNat 64 (packedPrefix lay tree leaf) := by
   have hh : height lay ≤ 12 := by rw [← hL_eq]; exact (hL_le lay).2
   have hl32 : leaf < 2 ^ 32 := lt_of_lt_of_le hl
     (Nat.pow_le_pow_right (by decide) (by omega))
   have hs : (hL lay.val + 16) % 2 ^ 64 % 64 = height lay + 16 := by rw [hL_eq]; omega
   simp only [packedRouteE, E.eval, BinOp.eval, kw, h4, h30,
-    hD.prefix lay.val lay.isLt, hdr1_eq tree leaf ht hl32]
+    hP, hdr1_eq tree leaf ht hl32]
   rw [ofNat_shr', ofNat_shl', ofNat_shl']
   change BitVec.ofNat 64 (128 + 193 * 2 ^ 56 + lay.val * 2 ^ 48) |||
     BitVec.ofNat 64 ((tree + 2 ^ 32 * leaf) % 2 ^ 64 / 2 ^ 32 * 65536) |||
@@ -659,6 +664,7 @@ theorem knownOK_eighteen (s : MachineState)
   all_goals assumption
 theorem lctxOf_known (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (p : Nat)
     (s : MachineState) (hk : KnownOK (postBl lay.val p) s)
+    (h22 : s.getReg .x22 = BitVec.ofNat 64 (s6v lay.val))
     (h28 : s.getReg .x28 = BitVec.ofNat 64 (packedPrefix lay (route index lay).2 (route index lay).1))
     (h4 : s.getReg .x4 = BitVec.ofNat 64 (hdr1 (route index lay).2 (route index lay).1))
     (h16 : s.getReg .x16 = a.extractLsb' 0 64)
@@ -678,13 +684,13 @@ theorem lctxOf_known (w : WBytes) (index : Nat) (lay : Layer) (a : BitVec 256) (
   · exact ofNat64_add_zero_bridge _ _ h28
   · exact knownOK_at _ s 4 (.x2, 0x3fe00) hk rfl
   · exact knownOK_at _ s 16 (.x15, 0x6e000) hk rfl
-  · exact knownOK_at _ s 17 (.x22, BitVec.ofNat 64 (s6v lay.val)) hk rfl
+  · exact h22
   · exact h4
   · exact knownOK_at _ s 2 (.x27, BitVec.ofNat 64 (0x401 + 65536 * lay.val)) hk rfl
   · exact h16
   · exact h17
   · exact h29
-  · exact knownOK_at _ s 19 (.x1, pcOf (p + retOff lay.val)) hk rfl
+  · exact knownOK_at _ s 18 (.x1, pcOf (p + retOff lay.val)) hk rfl
 theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay : lay ≠ 0) (c : Nat) (hc : c < nCopy lay.val)
     (hidx : index < 2 ^ 31) (t : MachineState) (ht : EncPre w pk index lay.val c t) (a : BitVec 256) :
     (decode lay (a.extractLsb' 0 128) = none → ∃ v k cy, Steps image (writeHash t a) k cy v ∧
@@ -807,13 +813,29 @@ theorem encB_step (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (hlay :
     refine ⟨s0, hs0.steps, hLok, ?_, ?_, ⟨⟨fun _ _ => rfl, Frame.refl _ _, fun j hj => by simp at hj⟩, rfl,
       hGs0.2.2.2.2.2, hpc0⟩, ⟨hkL, hGs0.2.1, hGs0.2.2.1, hGs0.2.2.2.1, hGs0.2.2.2.2⟩, hOs0, ?_, ?_⟩
     ·
-      apply lctxOf_known w index lay a (trPc lay.val c) s0 hko
+      have h22 : s0.getReg .x22 = BitVec.ofNat 64 (s6v lay.val) := by
+        by_cases h3 : lay.val = 3
+        · obtain rfl : lay = 3 := Fin.ext h3
+          rw [hs0.regs (.x22, .ld (kw s6Slot)) (by simp [specBl])]
+          show u.getMem (BitVec.ofNat 64 s6Slot) = BitVec.ofNat 64 (s6v 3)
+          rw [hu, writeHash_frame t a 256 s6Slot h12
+            (by unfold s6Slot TOPBASE; omega) (by norm_num)
+            (Or.inr (by unfold s6Slot TOPBASE; omega))]
+          simpa [s6v] using ht.s6mem rfl
+        · exact hko (.x22, BitVec.ofNat 64 (s6v lay.val)) (by simp [postBl, h3])
+      apply lctxOf_known w index lay a (trPc lay.val c) s0 hko h22
       · rw [hs0.regs (.x28, packedRouteE lay.val) (by simp [specBl])]
         simpa only [Nat.add_zero] using packedRouteE_eval lay _ _ u
           (tree_lt index lay hidx) (by simpa only [hL_eq] using leaf_lt index lay)
           (routed_lt index lay hidx)
           (by rw [hu, writeHash_getReg, ht.tp lay rfl])
-          (by rw [hu, writeHash_getReg, ht.t5 lay rfl (fun h => hlay (Fin.ext h))]) hGu.2.2.2.2.2
+          (by rw [hu, writeHash_getReg, ht.t5 lay rfl (fun h => hlay (Fin.ext h))]) (by
+            by_cases h3 : lay.val = 3
+            · rw [hdrA, if_pos h3, hu, writeHash_frame t a 256 (TOPLOAD + 32) h12 (by unfold TOPLOAD; omega)
+                (by norm_num) (Or.inr (by unfold TOPLOAD; omega)), h3]
+              exact ht.hdr3 h3
+            · rw [hdrA, if_neg h3]
+              exact hGu.2.2.2.2.2.prefix lay.val lay.isLt)
       · rw [hkeep .x4 (by simp [keepB]), hu, writeHash_getReg, ht.tp lay rfl]
       · rw [hs0.regs (.x16, a6E) (by simp [specBl]), a6E_eval hans]
       · rw [hs0.regs (.x17, a7lE) (by simp [specBl]), e17]
