@@ -305,15 +305,15 @@ def layerHead {β : Type} (w : WBytes) (index : Nat) (lay : Layer) (M : ClaudeWC
     | none => pure none
     | some digits => chainsP w lay (route index lay).2 (route index lay).1 digits >>= R
 def stB (lay : Nat) : Nat := if lay = 0 then 120 else bSt lay
-def cyB (lay : Nat) : Nat := if lay = 0 then 72 else bCy lay
+def cyB (lay : Nat) : Nat := if lay = 0 then 71 else bCy lay
 def chainCost0 (lay : Nat) : Nat := if lay = 0 then 1086 else 2950 - 9 * tgtL lay
 def chainFuel (lay : Nat) : Nat := if lay = 0 then 2321 else 1720
 def layerCost (lay Z : Nat) : Nat := stepsA lay + 8 + cyB lay + lfSteps lay + chainCost0 lay - Z
 def layerFuel (lay : Nat) : Nat := stepsA lay + 1 + stB lay + chainFuel lay + lfSteps lay
 theorem layerCost_vals :
-    layerCost 3 0 = 1261 ∧ layerCost 2 0 = 1241 ∧ layerCost 1 0 = 1242 ∧ layerCost 0 0 = 1188 := by decide
+    layerCost 3 0 = 1259 ∧ layerCost 2 0 = 1241 ∧ layerCost 1 0 = 1242 ∧ layerCost 0 0 = 1187 := by decide
 theorem layerFuel_vals :
-    layerFuel 3 = 1785 ∧ layerFuel 2 = 1774 ∧ layerFuel 1 = 1775 ∧ layerFuel 0 = 2464 := by decide
+    layerFuel 3 = 1783 ∧ layerFuel 2 = 1774 ∧ layerFuel 1 = 1775 ∧ layerFuel 0 = 2464 := by decide
 theorem ckOf_lt (lay : Layer) (hlay : lay ≠ 0) (a : BitVec 256) (ds : List Nat)
     (hds : decode lay (a.extractLsb' 0 128) = some ds) : ckOf lay a < 8 := by
   rw [decode_lower lay hlay] at hds
@@ -408,29 +408,46 @@ theorem layer_good_low (w : WBytes) (pk : Digest) (index : Nat) (lay : Layer) (h
     exact GoodQ.steps' hst this (by omega) (by omega) (fun hq => ⟨hq, by omega⟩)
 theorem layerIn_of_fts (w : WBytes) (pk : Digest) (idx : Nat) (root : Digest) (u : MachineState)
     (hidx : idx < 2 ^ 31) (hglob : Glob baseK w pk u) (hreg : u.getReg .x22 = BitVec.ofNat 64 idx)
-    (hpc : u.pc = pcOf 588) (hroot : DigAt u 0x100 root)
+    (hpc : u.pc = pcOf 589) (hroot : DigAt u 0x100 root)
     (hwit : Verify.Orig w (fun o => o < 64 ∨ 9288 ≤ o) u) (ha2 : u.getReg .x12 = BitVec.ofNat 64 0x100)
-    (hs10 : u.getReg .x26 = 6) :
-    ∃ t, Steps image u 6 6 t ∧ LayerIn w pk idx 3 (.forest root) t := by
-  obtain ⟨t, ht⟩ := spec_run BC.ld3Check_ok u hpc hglob.1 (by simp [ld3Spec]) (by simp)
+    (hs10 : u.getReg .x26 = 6)
+    (hbase : u.getReg .x28 = BitVec.ofNat 64 TOPBASE)
+    (htop : ∀ k, k < 4 → u.getMem (BitVec.ofNat 64 (TOPLOAD + 8 * k)) =
+      BitVec.ofNat 64 (dataWords.getD (k + 1) 0)) :
+    ∃ t, Steps image u 5 5 t ∧ LayerIn w pk idx 3 (.forest root) t := by
+  have hk0 : KnownOK ld3In u := by
+    intro p hp
+    simp only [ld3In, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with hp | rfl
+    · exact hglob.1 p hp
+    · exact hbase
+  obtain ⟨t, ht⟩ := spec_run BC.ld3Check_ok u hpc hk0 (by simp [ld3Spec]) (by simp)
   have hm : ∀ A, t.getMem A = u.getMem A := fun A => by rw [ht.mem]; rfl
-  have hD : DataOK u := hglob.2.2.2.2.2
   have r19 : t.getReg .x19 = (kw 0x400000).eval u := ht.regs (.x19, kw 0x400000) (by simp [ld3Spec])
-  have r21 : t.getReg .x21 = (E.ld (kw (DATA + 8))).eval u := ht.regs (.x21, .ld (kw (DATA + 8))) (by simp [ld3Spec])
-  have r20 : t.getReg .x20 = (E.ld (kw (DATA + 16))).eval u :=
-    ht.regs (.x20, .ld (kw (DATA + 16))) (by simp [ld3Spec])
-  have r27 : t.getReg .x27 = (E.ld (kw (DATA + 24))).eval u :=
-    ht.regs (.x27, .ld (kw (DATA + 24))) (by simp [ld3Spec])
-  have r2 : t.getReg .x2 = (E.ld (kw (DATA + 32))).eval u := ht.regs (.x2, .ld (kw (DATA + 32))) (by simp [ld3Spec])
+  have r21 : t.getReg .x21 = (E.ld (kw TOPLOAD)).eval u := ht.regs (.x21, .ld (kw TOPLOAD)) (by simp [ld3Spec])
+  have r20 : t.getReg .x20 = (E.ld (kw (TOPLOAD + 8))).eval u :=
+    ht.regs (.x20, .ld (kw (TOPLOAD + 8))) (by simp [ld3Spec])
+  have r27 : t.getReg .x27 = (E.ld (kw (TOPLOAD + 16))).eval u :=
+    ht.regs (.x27, .ld (kw (TOPLOAD + 16))) (by simp [ld3Spec])
+  have r2 : t.getReg .x2 = (E.ld (kw (TOPLOAD + 24))).eval u :=
+    ht.regs (.x2, .ld (kw (TOPLOAD + 24))) (by simp [ld3Spec])
   have e19 : t.getReg .x19 = BitVec.ofNat 64 0x400000 := r19
-  have e21 : t.getReg .x21 = BitVec.ofNat 64 M2c :=
-    r21.trans (hD.word 1 (by omega) M2c (by decide) (DATA + 8) (by omega))
-  have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c :=
-    r20.trans (hD.word 2 (by omega) M1c (by decide) (DATA + 16) (by omega))
-  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) :=
-    r27.trans (hD.word 3 (by omega) (hw 4 3) (by decide) (DATA + 24) (by omega))
-  have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 :=
-    r2.trans (hD.word 4 (by omega) 0x3fe00 (by decide) (DATA + 32) (by omega))
+  have e21 : t.getReg .x21 = BitVec.ofNat 64 M2c := by
+    rw [r21]
+    change u.getMem (BitVec.ofNat 64 TOPLOAD) = _
+    exact (htop 0 (by decide)).trans (by decide +kernel)
+  have e20 : t.getReg .x20 = BitVec.ofNat 64 M1c := by
+    rw [r20]
+    change u.getMem (BitVec.ofNat 64 (TOPLOAD + 8)) = _
+    exact (htop 1 (by decide)).trans (by decide +kernel)
+  have e27 : t.getReg .x27 = BitVec.ofNat 64 (hw 4 3) := by
+    rw [r27]
+    change u.getMem (BitVec.ofNat 64 (TOPLOAD + 16)) = _
+    exact (htop 2 (by decide)).trans (by decide +kernel)
+  have e2 : t.getReg .x2 = BitVec.ofNat 64 0x3fe00 := by
+    rw [r2]
+    change u.getMem (BitVec.ofNat 64 (TOPLOAD + 24)) = _
+    exact (htop 3 (by decide)).trans (by decide +kernel)
   have hG0 : Glob baseK w pk t := ht.glob _ _ _ hglob (RelOK.nil u)
   have hpk : preK 3 = baseK ++ [(.x19, BitVec.ofNat 64 0x400000), (.x21, BitVec.ofNat 64 M2c),
       (.x20, BitVec.ofNat 64 M1c), (.x27, BitVec.ofNat 64 (hw 4 3)), (.x2, BitVec.ofNat 64 0x3fe00),
