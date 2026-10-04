@@ -35,6 +35,7 @@
 
 - Dependencies are installed by `.cursor/cloud-install.sh` while the Cloud Agent image is built. `elan`, `lean`, `lake`, and Go are already on `PATH` in a booted agent.
 - Edit only `submission/`. The trusted library is `lake build SigGolf`. A full `lake build Solution` is the candidate certificate build and is much heavier.
-- `python3 verifier/check_submission.py submission` is the structural policy check. `python3 scripts/run.py` is official scoring and needs Landlock ABI 3 plus systemd user services. If that preflight fails in this VM, the run is not a certificate.
+- `python3 verifier/check_submission.py submission` is the structural policy check. `python3 -m unittest verifier.tests.test_policy` covers that checker. `lake env lean` can import the built `SigGolf` library.
+- `python3 scripts/run.py` is official scoring. It needs Landlock ABI 3 and a real systemd user manager. This VM's PID 1 is not systemd, so `systemd-run --user` cannot start the sandbox even when `linux_preflight` passes. Do not treat that local failure as a certificate.
 - This fork is the Cloud Agent remote. Yukon still promotes from `Layr-Labs/sig.golf`. Do not force-push `main`.
 
