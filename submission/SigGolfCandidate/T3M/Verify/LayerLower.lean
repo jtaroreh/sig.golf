@@ -99,7 +99,7 @@ theorem setup_post : SetupPost := fun w pk index lay msg s hs c t ht => by
       apply memEval_frame_ofNat s _ s6Slot (by unfold s6Slot TOPBASE; omega)
       intro p hp
       simp only [T3M.specA, List.mem_cons, List.not_mem_nil, or_false] at hp
-      rcases hp with rfl | rfl | rfl <;> simp [s6Slot, TOPBASE]
+      rcases hp with rfl | rfl | rfl <;> decide
     rw [hm, hf]
     exact hs.s6mem h3
   case refine_7 =>
