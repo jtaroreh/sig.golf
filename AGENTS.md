@@ -30,3 +30,11 @@
   Yukon's leaderboard presentation.
 - When changing the contract, keep `RULES.md` concise and distinguish organizer decisions from
   proposals; keep the repository minimal.
+
+## Cursor Cloud specific instructions
+
+- Dependencies are installed by `.cursor/cloud-install.sh` while the Cloud Agent image is built. `elan`, `lean`, `lake`, and Go are already on `PATH` in a booted agent.
+- Edit only `submission/`. The trusted library is `lake build SigGolf`. A full `lake build Solution` is the candidate certificate build and is much heavier.
+- `python3 verifier/check_submission.py submission` is the structural policy check. `python3 scripts/run.py` is official scoring and needs Landlock ABI 3 plus systemd user services. If that preflight fails in this VM, the run is not a certificate.
+- This fork is the Cloud Agent remote. Yukon still promotes from `Layr-Labs/sig.golf`. Do not force-push `main`.
+

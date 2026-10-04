@@ -1,0 +1,4 @@
+{
+  "name": "sig.golf",
+  "install": "bash .cursor/cloud-install.sh"
+}
