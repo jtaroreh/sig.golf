@@ -979,7 +979,8 @@ theorem mkStop_next_lower (w : WBytes) (pk : Digest) (index : Nat) (hidx : index
   have hL0 : lay ≠ 0 := by intro h; apply h0; rw [h]; rfl
   refine ⟨by omega, hidx, ⟨(route index lay).1, by omega, ?_⟩,
     ⟨mkStop_known_next _ lay.isLt h0 u t hu.glob.1 ha.known ha.keep, ha.glob.2⟩, ?_,
-    mkStop_msg w pk index lay h0 u v t ht, ?_, fun h => absurd h (by have := lay.isLt; omega)⟩
+    mkStop_msg w pk index lay h0 u v t ht, ?_, fun h => absurd h (by have := lay.isLt; omega),
+    fun h => absurd h (by have := lay.isLt; omega)⟩
   · rw [ha.pc, mkStop_pc _ _ lay.isLt h0 hleaf]
   · have he : BC.below (lay.val - 1) = below (lay.val - 1) := by
       fin_cases lay <;> rfl

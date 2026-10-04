@@ -220,7 +220,8 @@ theorem gate_good (pk : Digest) (w : WBytes) (a : HashOutput)
         pairs := fun i hi => absurd hi (Nat.not_lt_zero _), coords := ?_, layer := ?_ }
       · intro k hk; rw [e3]; exact hu.digest k hk
       · exact ⟨fun k => (e3 _).trans (hu.bank.node k),
-          fun k => (e3 _).trans (hu.bank.leaf k), fun k hk => (e3 _).trans (hu.bank.top k hk)⟩
+          fun k => (e3 _).trans (hu.bank.leaf k), fun k hk => (e3 _).trans (hu.bank.top k hk),
+          (e3 _).trans hu.bank.s6⟩
       · rw [hs3, Result.toState_getReg]; exact hidx
       · intro h h2 h7
         interval_cases h <;> rfl
