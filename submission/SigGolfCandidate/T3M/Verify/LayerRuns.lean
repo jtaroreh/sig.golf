@@ -45,11 +45,12 @@ def chainK (lay : Nat) : List (Reg × Word) :=
     (.x20, BitVec.ofNat 64 M1c), (.x21, BitVec.ofNat 64 M2c), (.x11, 64),
     (.x6, 1), (.x7, 2), (.x8, 3), (.x9, 4), (.x13, 5), (.x26, 6), (.x31, 7), (.x19, BitVec.ofNat 64 0x400000),
     (.x15, BitVec.ofNat 64 0x6e000)]
+def ld3In : List (Reg × Word) := baseK ++ [(.x28, BitVec.ofNat 64 TOPBASE)]
 def ld3Spec : Spec :=
-  ⟨[(.x19, kw 0x400000), (.x21, .ld (kw (DATA + 8))), (.x20, .ld (kw (DATA + 16))),
-      (.x27, .ld (kw (DATA + 24))), (.x2, .ld (kw (DATA + 32)))],
-    [], 594, false, 6, [], none, 6⟩
-def ld3Check : Bool := specB [] [] baseK (runAt baseK [594] 588 []) ld3Spec [] baseK [.x22, .x12, .x26]
+  ⟨[(.x19, kw 0x400000), (.x21, .ld (kw TOPLOAD)), (.x20, .ld (kw (TOPLOAD + 8))),
+      (.x27, .ld (kw (TOPLOAD + 16))), (.x2, .ld (kw (TOPLOAD + 24)))],
+    [], 594, false, 5, [], none, 5⟩
+def ld3Check : Bool := specB [] [] baseK (runAt ld3In [594] 589 []) ld3Spec [] baseK [.x22, .x12, .x26]
 def bK (lay : Nat) : List (Reg × Word) := layK lay ++ [(.x10, 256), (.x12, 256)] ++
   (if lay = 1 ∨ lay = 2 then [(.x22, BitVec.ofNat 64 (s6v lay))] else [])
 def rReg (lay : Nat) : Reg := if lay = 3 then .x22 else .x30
